@@ -1,0 +1,54 @@
+# Built application files
+*.apk
+*.ap_
+*.aab
+*.dex
+
+# Generated files
+bin/
+gen/
+out/
+build/
+app/build/
+**/build/
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Local configuration (SDK path, signing secrets)
+local.properties
+*.jks
+*.keystore
+!debug.keystore
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+captures/
+.navigation/
+.externalNativeBuild/
+.cxx/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Agent / tooling scratch
+.claude/
+.cursor/
+
+# NDK / profiling
+obj/
+*.hprof
+
+# Lint / reports (regenerated)
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/
