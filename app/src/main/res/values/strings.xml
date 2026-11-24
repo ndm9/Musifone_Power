@@ -40,7 +40,7 @@
     <string name="pref_smtp_user">SMTP username</string>
     <string name="pref_smtp_pass">SMTP password / app password</string>
     <string name="pref_smtp_from">From address</string>
-    <string name="pref_email_help">Use an app password (Gmail: smtp.gmail.com, port 587). Emails reach your main phone without extra apps.</string>
+    <string name="pref_email_help">Use an app password (Gmail: smtp.gmail.com, port 587). At most one email per discharge, only during wake hours, until you plug in.</string>
     <string name="saved">Saved</string>
     <string name="email_sent">Test email sent</string>
     <string name="email_failed">Email failed: %1$s</string>

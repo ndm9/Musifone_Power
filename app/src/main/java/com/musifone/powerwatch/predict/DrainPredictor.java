@@ -123,7 +123,7 @@ public final class DrainPredictor {
         return weightedRateSum / weightSum;
     }
 
-    static boolean isWithinWakeHours(long epochMs, SettingsStore settings) {
+    public static boolean isWithinWakeHours(long epochMs, SettingsStore settings) {
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(epochMs);
         int hour = cal.get(Calendar.HOUR_OF_DAY);

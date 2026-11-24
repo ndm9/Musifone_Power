@@ -5,8 +5,8 @@ Low-resource battery watcher for Android 10 (Samsung Galaxy J4 / similar).
 ## What it does
 
 - Watches battery level with an **event-driven** foreground service (no polling loop)
-- Alerts at configurable thresholds (default `40,25,15`) via local notification
-- Optionally emails your main phone over SMTP when a threshold is crossed
+- Alerts at configurable thresholds (default `40,25,15`) via local notification — once per threshold until you plug in
+- Optionally emails your main phone over SMTP **once per discharge**, only during wake hours
 - Stores charge/drain samples (~14 days) and estimates when you should recharge during wake hours
 
 ## Design notes (battery / RAM)

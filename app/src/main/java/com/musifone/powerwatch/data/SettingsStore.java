@@ -23,9 +23,12 @@ public class SettingsStore {
     private static final String KEY_SMTP_USER = "smtp_user";
     private static final String KEY_SMTP_PASS = "smtp_pass";
     private static final String KEY_SMTP_FROM = "smtp_from";
+    private static final String KEY_FIRED_THRESHOLDS = "fired_thresholds";
+    private static final String KEY_EMAIL_SENT_CYCLE = "email_sent_cycle";
+    private static final String KEY_LAST_RECORDED_LEVEL = "last_recorded_level";
+    /** Legacy keys cleared on reset for upgrades from the cooldown-based alerter. */
     private static final String KEY_LAST_ALERT_LEVEL = "last_alert_level";
     private static final String KEY_LAST_ALERT_AT = "last_alert_at";
-    private static final String KEY_LAST_RECORDED_LEVEL = "last_recorded_level";
 
     private final SharedPreferences prefs;
 
@@ -167,26 +170,63 @@ public class SettingsStore {
                 && !getSmtpPass().isEmpty();
     }
 
-    public int getLastAlertLevel() {
-        return prefs.getInt(KEY_LAST_ALERT_LEVEL, -1);
+    public Set<Integer> getFiredThresholds() {
+        String raw = prefs.getString(KEY_FIRED_THRESHOLDS, "");
+        Set<Integer> set = new LinkedHashSet<>();
+        if (raw == null || raw.isEmpty()) {
+            return set;
+        }
+        for (String part : raw.split(",")) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            try {
+                set.add(Integer.parseInt(part.trim()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return set;
     }
 
-    public long getLastAlertAt() {
-        return prefs.getLong(KEY_LAST_ALERT_AT, 0L);
+    public boolean hasFiredThreshold(int threshold) {
+        return getFiredThresholds().contains(threshold);
     }
 
-    public void markAlert(int level, long atMs) {
-        prefs.edit()
-                .putInt(KEY_LAST_ALERT_LEVEL, level)
-                .putLong(KEY_LAST_ALERT_AT, atMs)
-                .apply();
+    public void markThresholdFired(int threshold) {
+        Set<Integer> set = getFiredThresholds();
+        if (!set.add(threshold)) {
+            return;
+        }
+        prefs.edit().putString(KEY_FIRED_THRESHOLDS, joinInts(set)).apply();
     }
 
+    public boolean isEmailSentThisCycle() {
+        return prefs.getBoolean(KEY_EMAIL_SENT_CYCLE, false);
+    }
+
+    public void setEmailSentThisCycle(boolean sent) {
+        prefs.edit().putBoolean(KEY_EMAIL_SENT_CYCLE, sent).apply();
+    }
+
+    /** Clears per-discharge alert state when the phone is plugged in. */
     public void clearAlertMarker() {
         prefs.edit()
-                .putInt(KEY_LAST_ALERT_LEVEL, -1)
-                .putLong(KEY_LAST_ALERT_AT, 0L)
+                .putString(KEY_FIRED_THRESHOLDS, "")
+                .putBoolean(KEY_EMAIL_SENT_CYCLE, false)
+                .remove(KEY_LAST_ALERT_LEVEL)
+                .remove(KEY_LAST_ALERT_AT)
                 .apply();
+    }
+
+    private static String joinInts(Set<Integer> values) {
+        StringBuilder sb = new StringBuilder();
+        for (Integer value : values) {
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            sb.append(value);
+        }
+        return sb.toString();
     }
 
     public int getLastRecordedLevel() {

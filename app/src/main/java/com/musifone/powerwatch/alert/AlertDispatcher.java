@@ -11,15 +11,17 @@ import androidx.core.app.NotificationManagerCompat;
 import com.musifone.powerwatch.PowerWatchApp;
 import com.musifone.powerwatch.R;
 import com.musifone.powerwatch.data.SettingsStore;
+import com.musifone.powerwatch.predict.DrainPredictor;
 import com.musifone.powerwatch.ui.MainActivity;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class AlertDispatcher {
     private static final String TAG = "AlertDispatcher";
-    private static final long COOLDOWN_MS = 45L * 60L * 1000L;
 
     private final Context appContext;
     private final SettingsStore settings;
@@ -31,35 +33,70 @@ public class AlertDispatcher {
     }
 
     /**
-     * Fires when battery crosses at or below a configured threshold while discharging.
-     * Dedupes the same threshold for {@link #COOLDOWN_MS} so brief fluctuations do not spam.
+     * Alerts once per threshold per discharge cycle (resets when plugged in).
+     * Email is sent at most once per cycle, and only during wake hours.
      */
     public void evaluate(int levelPercent) {
         List<Integer> thresholds = settings.getThresholds();
-        Integer hit = null;
+        List<Integer> newlyCrossed = new ArrayList<>();
         for (Integer threshold : thresholds) {
-            if (levelPercent <= threshold) {
-                hit = threshold;
+            if (levelPercent <= threshold && !settings.hasFiredThreshold(threshold)) {
+                newlyCrossed.add(threshold);
             }
         }
-        if (hit == null) {
+
+        if (!newlyCrossed.isEmpty()) {
+            for (Integer threshold : newlyCrossed) {
+                settings.markThresholdFired(threshold);
+            }
+            // One local notification for the most urgent newly crossed band.
+            int hit = Collections.min(newlyCrossed);
+            showLocalNotification(levelPercent, hit);
+        }
+
+        maybeEmailOnce(levelPercent, thresholds);
+    }
+
+    private void maybeEmailOnce(int levelPercent, List<Integer> thresholds) {
+        if (!settings.isEmailEnabled() || !settings.isEmailConfigured()) {
+            return;
+        }
+        if (settings.isEmailSentThisCycle()) {
+            return;
+        }
+        if (!DrainPredictor.isWithinWakeHours(System.currentTimeMillis(), settings)) {
             return;
         }
 
-        long now = System.currentTimeMillis();
-        int lastLevel = settings.getLastAlertLevel();
-        long lastAt = settings.getLastAlertAt();
-        if (lastLevel == hit && (now - lastAt) < COOLDOWN_MS) {
-            return;
+        boolean belowAny = false;
+        int nearest = -1;
+        for (Integer threshold : thresholds) {
+            if (levelPercent <= threshold) {
+                belowAny = true;
+                if (nearest < 0 || threshold < nearest) {
+                    nearest = threshold;
+                }
+            }
         }
-        // Only re-alert a higher threshold after cooldown if we already alerted a lower one.
-        if (lastLevel >= 0 && hit > lastLevel && (now - lastAt) < COOLDOWN_MS) {
+        if (!belowAny) {
             return;
         }
 
-        settings.markAlert(hit, now);
-        showLocalNotification(levelPercent, hit);
-        maybeEmail(levelPercent, hit);
+        settings.setEmailSentThisCycle(true);
+        String subject = "Musifone: time to charge (" + levelPercent + "%)";
+        String body = "Battery is at " + levelPercent
+                + "% (at or below your " + nearest + "% alert).\n\n"
+                + "This is the only email until you plug the phone in.\n"
+                + "Charge it during your wake hours when you can.";
+        emailIo.execute(() -> {
+            try {
+                EmailSender.send(settings, subject, body);
+            } catch (Exception e) {
+                Log.e(TAG, "Email alert failed", e);
+                // Allow a later retry if SMTP failed.
+                settings.setEmailSentThisCycle(false);
+            }
+        });
     }
 
     private void showLocalNotification(int level, int threshold) {
@@ -83,22 +120,5 @@ public class AlertDispatcher {
         } catch (SecurityException e) {
             Log.w(TAG, "Notification permission missing", e);
         }
-    }
-
-    private void maybeEmail(int level, int threshold) {
-        if (!settings.isEmailEnabled() || !settings.isEmailConfigured()) {
-            return;
-        }
-        String subject = "Musifone: battery " + level + "% (≤" + threshold + "%)";
-        String body = "The Galaxy phone battery is at " + level
-                + "% and crossed your " + threshold + "% alert.\n\n"
-                + "Open Musifone Power on that phone when you can recharge it.";
-        emailIo.execute(() -> {
-            try {
-                EmailSender.send(settings, subject, body);
-            } catch (Exception e) {
-                Log.e(TAG, "Email alert failed", e);
-            }
-        });
     }
 }
